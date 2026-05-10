@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+        env:
+          AUTH_SECRET: 0000000000000000000000000000000000000000000000000000000000000000
+          ENCRYPTION_KEY: 1111111111111111111111111111111111111111111111111111111111111111
+          AUTH_TRUST_HOST: "true"
+          CRON_SECRET: 2222222222222222222222222222222222222222222222222222222222222222
+
+      - name: Build
+        run: npm run build
+        env:
+          AUTH_SECRET: 0000000000000000000000000000000000000000000000000000000000000000
+          ENCRYPTION_KEY: 1111111111111111111111111111111111111111111111111111111111111111
+          AUTH_TRUST_HOST: "true"
+          CRON_SECRET: 2222222222222222222222222222222222222222222222222222222222222222
+
+  security:
+    name: Security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (high+)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - name: Scan for accidental secret commits
+        run: |
+          # Block obvious accidental secret patterns
+          ! grep -rE "(sk-ant-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|ghp_[A-Za-z0-9]{36})" \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" --include="*.md" \
+            app/ lib/ components/ scripts/ docs/ 2>/dev/null || (echo "❌ Possible secret leak detected" && exit 1)

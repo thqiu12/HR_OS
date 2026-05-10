@@ -1,0 +1,23 @@
+# Litestream config — continuous SQLite replication to S3-compatible storage.
+#
+# Usage:
+#   1. Install litestream: https://litestream.io/install/
+#   2. Set env vars: LITESTREAM_ACCESS_KEY_ID, LITESTREAM_SECRET_ACCESS_KEY
+#   3. Edit `bucket` and `endpoint` below to match your storage
+#   4. Run alongside the app: `litestream replicate -config scripts/litestream.yml`
+#
+# In a Fly.io / Docker setup, run litestream as a sidecar process under
+# the same supervisor as `next start`. See docs/DEPLOY.md for the full
+# integration pattern.
+
+dbs:
+  - path: /data/hr-os.db          # Match HR_DB_PATH in env
+    replicas:
+      - type: s3
+        bucket: hr-os-backups     # CHANGE ME
+        path: hr-os.db
+        endpoint: https://s3.ap-northeast-1.amazonaws.com  # CHANGE ME
+        region: ap-northeast-1
+        retention: 720h            # 30 days of WAL + snapshots
+        snapshot-interval: 24h
+        sync-interval: 1s

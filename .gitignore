@@ -1,0 +1,26 @@
+node_modules
+.next
+.env
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+hr-os.db
+hr-os.db-shm
+hr-os.db-wal
+uploads/
+backups/
+*.tsbuildinfo
+.DS_Store
+coverage
+.vercel
+*.log
+.npm
+.pnpm-debug.log
+# OS noise
+Thumbs.db
+ehthumbs.db
+# Editor
+.idea/
+.vscode/*.bak
+.cursor/
