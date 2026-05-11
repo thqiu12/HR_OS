@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { Card, Badge, Button } from "@/components/ui";
+import { Card, CardHeader, Badge, Button } from "@/components/ui";
 import { notFound, redirect } from "next/navigation";
 import { Mail, Calendar, IdCard } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import EmployeeEditButton from "./edit-button";
 import EmployeePiiSection from "./pii-section";
 import AssignmentsSection from "./assignments-section";
 import WageRatesSection from "./wage-rates-section";
+import TeacherPortalButton from "./portal-button";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,15 @@ export default async function Page({ params }: { params: { id: string } }) {
         history={db.wageRateHistoryFor(e.id) as any[]}
         availableTypes={(db.wageRateTypesFor({ entity: schools.find((s: any) => s.id === e.schoolId)?.entity, schoolId: e.schoolId }) as any[]).filter((t: any) => t.active)}
       />
+
+      {canEdit && (
+        <Card>
+          <CardHeader title="🔗 教員ポータル" subtitle="ログイン不要のURLを発行 — 自分のシフト・給与明細閲覧 (90日有効)" />
+          <div className="p-5">
+            <TeacherPortalButton employeeId={e.id} />
+          </div>
+        </Card>
+      )}
 
       {isAdmin && (
         <EmployeePiiSection employeeId={e.id} hasMyNumber={!!piiCt?.myNumberEnc} hasBank={!!piiCt?.bankAccountEnc} hasPassport={!!piiCt?.passportNoEnc} />

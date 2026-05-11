@@ -19,6 +19,12 @@ const items: NavItem[] = [
       { href: "/recruiting/interviews", label: "面接スケジュール" },
     ] },
   { href: "/onboarding/cases", label: "入社手続き", icon: ClipboardList, match: "/onboarding", mod: "onboarding" },
+  { href: "/staffing/shifts", label: "シフト・給与", icon: ClipboardList, match: "/staffing", mod: "recruiting",
+    children: [
+      { href: "/staffing/shifts", label: "シフト管理" },
+      { href: "/staffing/shifts/patterns", label: "週次パターン" },
+      { href: "/staffing/payroll", label: "給与計算" },
+    ] },
   { href: "/organization/tree", label: "組織管理", icon: Building2, match: "/organization", mod: "organization",
     children: [
       { href: "/organization/tree", label: "組織ツリー" },

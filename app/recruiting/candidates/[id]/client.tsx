@@ -2,7 +2,7 @@
 import { Card, CardHeader, Badge, Button } from "@/components/ui";
 import { Sparkles, FileText, Mail, Phone, Calendar, Briefcase, GraduationCap, Award, Upload, AlertCircle, X, Video, MapPin } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
-import { uploadResume, parseResumeAction } from "./actions";
+import { uploadResume, parseResumeAction, parseResumeLocalAction } from "./actions";
 import { advanceCandidateStage, rejectCandidate } from "@/lib/actions";
 import { scheduleInterviewAction } from "@/lib/interview-actions";
 import { useRouter } from "next/navigation";
@@ -40,11 +40,24 @@ export default function CandidateClient({
 
   const onParse = () => {
     if (!resumeFile) { setErr("先に履歴書をアップロードしてください"); return; }
+    if (!hasApiKey) { setErr("ANTHROPIC_API_KEY が未設定です。.env で設定してから再試行してください。"); return; }
     setErr(null); setInfo(null);
     start(async () => {
       const res = await parseResumeAction(c.id);
       if (!res.ok) { setErr(res.error); return; }
-      setInfo(res.mock ? "✅ モックデータで解析完了（ANTHROPIC_API_KEY 未設定）" : `✅ ${res.model} で解析完了（${res.tokensIn}入力 / ${res.tokensOut}出力 トークン）`);
+      setInfo(`✅ ${res.model} で解析完了（${res.tokensIn}入力 / ${res.tokensOut}出力 トークン）`);
+      router.refresh();
+    });
+  };
+
+  const onParseLocal = () => {
+    if (!resumeFile) { setErr("先に履歴書をアップロードしてください"); return; }
+    setErr(null); setInfo(null);
+    start(async () => {
+      const res = await parseResumeLocalAction(c.id);
+      if (!res.ok) { setErr(res.error); return; }
+      const pct = Math.round((res.coverage || 0) * 100);
+      setInfo(`✅ ローカル解析完了 (抽出率 ${pct}%) — 内容を確認・編集してください`);
       router.refresh();
     });
   };
@@ -115,11 +128,9 @@ export default function CandidateClient({
       <Card>
         <CardHeader
           title="📎 履歴書アップロード と AI解析"
-          subtitle={hasApiKey
-            ? `Claude ${parseModel || "Opus 4.7"} がPDFを解析し、構造化データに変換します`
-            : "ANTHROPIC_API_KEY 未設定 — 解析はモックデータで動作します"}
+          subtitle="ローカル解析は無料・即時、AI解析は高精度 (¥3-15/件) — まずローカルで試して不足ならAIへ"
           right={
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <input
                 ref={fileInput}
                 type="file"
@@ -130,10 +141,23 @@ export default function CandidateClient({
               <Button variant="secondary" size="sm" onClick={() => fileInput.current?.click()} disabled={pending}>
                 <Upload size={14} />{resumeFile ? "履歴書を差し替え" : "履歴書をアップロード"}
               </Button>
-              <Button onClick={onParse} disabled={pending || !resumeFile} size="sm">
-                <Sparkles size={14} />
-                {pending && parseStatus !== "done" ? "解析中..." : parsed ? "再解析" : "AIで解析"}
-              </Button>
+              <button
+                onClick={onParseLocal}
+                disabled={pending || !resumeFile}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-medium disabled:opacity-60"
+                title="PDFテキストを正規表現で抽出します。コスト ¥0、即時、要確認"
+              >
+                <Sparkles size={12} />ローカル解析 (無料)
+              </button>
+              <button
+                onClick={onParse}
+                disabled={pending || !resumeFile || !hasApiKey}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                title={hasApiKey ? `Claude ${parseModel || "Opus 4.7"} で高精度解析。¥3-15/件` : "ANTHROPIC_API_KEY を .env に設定すると有効になります"}
+              >
+                <Sparkles size={12} />
+                {!hasApiKey ? "AI解析 (要API設定)" : pending && parseStatus !== "done" ? "解析中..." : parsed ? "AI再解析" : "AI解析"}
+              </button>
             </div>
           }
         />
@@ -172,10 +196,12 @@ export default function CandidateClient({
         <div className="grid lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2">
             <CardHeader
-              title="🤖 AI解析結果"
+              title={parseModel === "local" ? "🟢 ローカル解析結果" : "🤖 AI解析結果"}
               subtitle={parseStatus === "skipped"
-                ? "⚠️ モックデータ（ANTHROPIC_API_KEY 未設定）"
-                : `Claude ${parseModel} による構造化抽出`}
+                ? "⚠️ モックデータ (古い結果) — ローカル解析またはAI解析を実行してください"
+                : parseModel === "local"
+                  ? `pdfjs-dist + 正規表現 (¥0)。内容を確認・編集してください`
+                  : `Claude ${parseModel} による構造化抽出`}
             />
             <div className="p-5 space-y-5">
               {parsed.summary && (

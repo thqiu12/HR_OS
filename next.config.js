@@ -32,7 +32,7 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  experimental: { serverComponentsExternalPackages: ["better-sqlite3"] },
+  experimental: { serverComponentsExternalPackages: ["better-sqlite3", "pdfjs-dist"] },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

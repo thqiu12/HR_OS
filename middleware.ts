@@ -11,7 +11,8 @@ export default auth((req) => {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/webhooks") ||
-    pathname.startsWith("/onboarding/invite");
+    pathname.startsWith("/onboarding/invite") ||
+    pathname.startsWith("/portal/teacher");
 
   // CSRF defense: for state-changing methods, require Origin header to match Host.
   // Server Actions and API routes are both POST; this check stops cross-origin

@@ -73,6 +73,18 @@ export async function updateEmployeeAction(id: string, fields: Record<string, an
       fields[k] = Math.floor(n);
     }
   }
+  if ("commuteMode" in fields && fields.commuteMode != null) {
+    if (!["none", "commute_pass", "per_diem", "per_shift"].includes(fields.commuteMode)) {
+      throw new AppError(400, `Invalid commuteMode: ${fields.commuteMode}`);
+    }
+  }
+  if ("commuteAmount" in fields && fields.commuteAmount != null) {
+    const n = Number(fields.commuteAmount);
+    if (!Number.isFinite(n) || n < 0 || n > 200000) {
+      throw new AppError(400, "通勤手当は 0〜200000 円の範囲で指定してください");
+    }
+    fields.commuteAmount = Math.floor(n);
+  }
   const before = { ...e };
   db.updateEmployee(id, fields);
   await logAudit({

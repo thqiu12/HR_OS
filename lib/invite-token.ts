@@ -119,3 +119,63 @@ export function touchInvite(jti: string) {
 export function revokeInvite(jti: string) {
   db.revokeInviteToken(jti);
 }
+
+// ===== Teacher portal tokens (different audience, employee-scoped) =====
+const PORTAL_AUDIENCE = "teacher-portal";
+
+export async function issueTeacherPortalToken(opts: {
+  employeeId: string;
+  issuedBy?: string | null;
+  days?: number;
+}): Promise<string> {
+  const { employeeId, issuedBy = null, days = 30 } = opts;
+  const jti = randomBytes(12).toString("hex");
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + days * 86400;
+
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuer(ISSUER)
+    .setAudience(PORTAL_AUDIENCE)
+    .setSubject(employeeId)
+    .setJti(jti)
+    .setIssuedAt(now)
+    .setExpirationTime(exp)
+    .sign(getSecret());
+
+  db.insertTeacherPortalInvite({
+    jti, employeeId, issuedBy,
+    issuedAt: new Date(now * 1000).toISOString(),
+    expiresAt: new Date(exp * 1000).toISOString(),
+  });
+  return token;
+}
+
+export type PortalVerifyResult =
+  | { ok: true; employeeId: string; jti: string; expiresAt: string }
+  | { ok: false; reason: "invalid_signature" | "expired" | "wrong_audience" | "wrong_issuer" | "revoked" | "unknown_jti" | "rate_limited" };
+
+export async function verifyTeacherPortalToken(token: string): Promise<PortalVerifyResult> {
+  const ip = clientIp();
+  const rl = inviteVerifyRateLimit(ip);
+  if (rl.allowed === false) return { ok: false, reason: "rate_limited" };
+
+  let payload: any;
+  try {
+    const { payload: p } = await jwtVerify(token, getSecret(), {
+      issuer: ISSUER, audience: PORTAL_AUDIENCE,
+    });
+    payload = p;
+  } catch (e: any) {
+    if (e?.code === "ERR_JWT_EXPIRED") return { ok: false, reason: "expired" };
+    if (e?.code === "ERR_JWT_CLAIM_VALIDATION_FAILED") return { ok: false, reason: "wrong_audience" };
+    return { ok: false, reason: "invalid_signature" };
+  }
+  const jti = payload.jti as string;
+  const employeeId = payload.sub as string;
+  const row: any = db.inviteTokenByJti(jti);
+  if (!row) return { ok: false, reason: "unknown_jti" };
+  if (row.kind !== "teacher_portal") return { ok: false, reason: "wrong_audience" };
+  if (row.revokedAt) return { ok: false, reason: "revoked" };
+  return { ok: true, employeeId, jti, expiresAt: row.expiresAt };
+}

@@ -245,6 +245,7 @@ export const db = {
       managerId: "manager_id", evaluatorId: "evaluator_id", costRatio: "cost_ratio",
       employmentType: "employment_type", hourlyRate: "hourly_rate",
       perClassRate: "per_class_rate", contractRenewalDate: "contract_renewal_date",
+      commuteMode: "commute_mode", commuteAmount: "commute_amount", commuteTaxable: "commute_taxable",
     };
     const sets: string[] = []; const args: any[] = [];
     for (const [k, v] of Object.entries(fields)) {
@@ -924,6 +925,180 @@ export const db = {
   endEmployeeWageRate: (id: number, effectiveTo: string) =>
     open().prepare("UPDATE employee_wage_rates SET effective_to = ? WHERE id = ? AND effective_to IS NULL")
       .run(effectiveTo, id),
+
+  // ===== courses =====
+  insertCourse: (row: { id: string; schoolId: string; code: string; name: string; level?: string | null; defaultMinutes?: number }) =>
+    open().prepare(`INSERT INTO courses (id, school_id, code, name, level, default_minutes, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?)`).run(
+      row.id, row.schoolId, row.code, row.name, row.level ?? null, row.defaultMinutes ?? 60, new Date().toISOString()
+    ),
+  coursesBySchool: (schoolId: string) =>
+    rowsToCamel(open().prepare("SELECT * FROM courses WHERE school_id = ? AND active = 1 ORDER BY code").all(schoolId)),
+  course: (id: string) => {
+    const r = open().prepare("SELECT * FROM courses WHERE id = ?").get(id);
+    return r ? rowToCamel<any>(r) : null;
+  },
+
+  // ===== shift_patterns =====
+  insertShiftPattern: (row: any) =>
+    open().prepare(`INSERT INTO shift_patterns
+      (employee_id, school_id, course_id, rate_type_id, day_of_week, start_time, end_time,
+       effective_from, effective_to, notes, created_at, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      row.employeeId, row.schoolId, row.courseId ?? null, row.rateTypeId,
+      row.dayOfWeek, row.startTime, row.endTime,
+      row.effectiveFrom, row.effectiveTo ?? null, row.notes ?? null,
+      new Date().toISOString(), row.createdBy ?? null
+    ),
+  patternsByEmployee: (employeeId: string, includeInactive = false) =>
+    rowsToCamel(open().prepare(`SELECT * FROM shift_patterns WHERE employee_id = ?
+      ${includeInactive ? "" : "AND effective_to IS NULL"} ORDER BY day_of_week, start_time`).all(employeeId)),
+  patternsBySchool: (schoolId: string) =>
+    rowsToCamel(open().prepare("SELECT * FROM shift_patterns WHERE school_id = ? AND effective_to IS NULL ORDER BY employee_id, day_of_week, start_time").all(schoolId)),
+  shiftPatternById: (id: number) => {
+    const r = open().prepare("SELECT * FROM shift_patterns WHERE id = ?").get(id);
+    return r ? rowToCamel<any>(r) : null;
+  },
+  endShiftPattern: (id: number, effectiveTo: string) =>
+    open().prepare("UPDATE shift_patterns SET effective_to = ? WHERE id = ? AND effective_to IS NULL")
+      .run(effectiveTo, id),
+  deleteShiftPattern: (id: number) =>
+    open().prepare("DELETE FROM shift_patterns WHERE id = ?").run(id),
+
+  // ===== shift_assignments =====
+  insertShiftAssignment: (row: any) => {
+    const now = new Date().toISOString();
+    open().prepare(`INSERT INTO shift_assignments
+      (employee_id, school_id, course_id, rate_type_id, rate_amount_snapshot, rate_unit,
+       date, start_time, end_time, hours, classes, status, pattern_id,
+       substitute_employee_id, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      row.employeeId, row.schoolId, row.courseId ?? null, row.rateTypeId,
+      row.rateAmountSnapshot, row.rateUnit,
+      row.date, row.startTime, row.endTime, row.hours, row.classes ?? 1,
+      row.status ?? "planned", row.patternId ?? null,
+      row.substituteEmployeeId ?? null, row.notes ?? null, now, now
+    );
+  },
+  shiftsByEmployeeMonth: (employeeId: string, yearMonth: string) =>
+    rowsToCamel(open().prepare(`SELECT * FROM shift_assignments
+      WHERE employee_id = ? AND substr(date, 1, 7) = ? ORDER BY date, start_time`).all(employeeId, yearMonth)),
+  shiftsBySchoolMonth: (schoolId: string, yearMonth: string) =>
+    rowsToCamel(open().prepare(`SELECT * FROM shift_assignments
+      WHERE school_id = ? AND substr(date, 1, 7) = ? ORDER BY date, start_time`).all(schoolId, yearMonth)),
+  /** All shifts in a given month across all schools — used by payroll commute computation. */
+  allShiftsInMonth: (yearMonth: string) =>
+    rowsToCamel(open().prepare(`SELECT * FROM shift_assignments
+      WHERE substr(date, 1, 7) = ? ORDER BY date, start_time`).all(yearMonth)),
+  shiftAssignmentById: (id: number) => {
+    const r = open().prepare("SELECT * FROM shift_assignments WHERE id = ?").get(id);
+    return r ? rowToCamel<any>(r) : null;
+  },
+  updateShiftAssignment: (id: number, fields: Record<string, any>) => {
+    const allowed: Record<string, string> = {
+      date: "date", startTime: "start_time", endTime: "end_time",
+      hours: "hours", classes: "classes", status: "status",
+      substituteEmployeeId: "substitute_employee_id", notes: "notes",
+      payrollPeriodId: "payroll_period_id",
+    };
+    const sets: string[] = []; const args: any[] = [];
+    for (const [k, v] of Object.entries(fields)) {
+      if (allowed[k]) { sets.push(`${allowed[k]} = ?`); args.push(v); }
+    }
+    if (sets.length === 0) return;
+    sets.push("updated_at = ?"); args.push(new Date().toISOString());
+    args.push(id);
+    open().prepare(`UPDATE shift_assignments SET ${sets.join(", ")} WHERE id = ?`).run(...args);
+  },
+  deleteShiftAssignment: (id: number) =>
+    open().prepare("DELETE FROM shift_assignments WHERE id = ?").run(id),
+
+  /** Aggregate shifts for a month into per-(employee, rate_type) totals. */
+  aggregateShiftsForPeriod: (yearMonth: string) =>
+    rowsToCamel(open().prepare(`
+      SELECT
+        employee_id,
+        rate_type_id,
+        rate_amount_snapshot,
+        rate_unit,
+        SUM(hours) AS hours,
+        SUM(classes) AS classes,
+        COUNT(*) AS shift_count,
+        SUM(CASE
+          WHEN rate_unit = 'hour' THEN hours * rate_amount_snapshot
+          WHEN rate_unit = 'class' THEN classes * rate_amount_snapshot
+          WHEN rate_unit = 'day' THEN rate_amount_snapshot
+          WHEN rate_unit = 'fixed' THEN rate_amount_snapshot
+          ELSE 0
+        END) AS amount
+      FROM shift_assignments
+      WHERE substr(date, 1, 7) = ?
+        AND status IN ('confirmed', 'completed')
+      GROUP BY employee_id, rate_type_id, rate_amount_snapshot, rate_unit
+      ORDER BY employee_id, rate_type_id
+    `).all(yearMonth)),
+
+  // ===== payroll =====
+  insertPayrollPeriod: (row: { yearMonth: string; notes?: string }) => {
+    const r = open().prepare(`INSERT INTO payroll_periods (year_month, status, created_at, notes)
+      VALUES (?, 'open', ?, ?)`).run(row.yearMonth, new Date().toISOString(), row.notes ?? null);
+    return Number(r.lastInsertRowid);
+  },
+  payrollPeriodByYearMonth: (yearMonth: string) => {
+    const r = open().prepare("SELECT * FROM payroll_periods WHERE year_month = ?").get(yearMonth);
+    return r ? rowToCamel<any>(r) : null;
+  },
+  payrollPeriodById: (id: number) => {
+    const r = open().prepare("SELECT * FROM payroll_periods WHERE id = ?").get(id);
+    return r ? rowToCamel<any>(r) : null;
+  },
+  allPayrollPeriods: (limit = 24) =>
+    rowsToCamel(open().prepare("SELECT * FROM payroll_periods ORDER BY year_month DESC LIMIT ?").all(limit)),
+  insertPayrollLine: (row: any) =>
+    open().prepare(`INSERT INTO payroll_lines
+      (period_id, employee_id, rate_type_id, rate_amount_snapshot, rate_unit,
+       hours, classes, amount, shift_count, notes, created_at, kind, taxable)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      row.periodId, row.employeeId, row.rateTypeId, row.rateAmountSnapshot, row.rateUnit,
+      row.hours, row.classes, row.amount, row.shiftCount, row.notes ?? null, new Date().toISOString(),
+      row.kind ?? "wage", row.taxable ?? 1
+    ),
+  linesByPeriod: (periodId: number) =>
+    rowsToCamel(open().prepare(`
+      SELECT pl.*, e.name AS employee_name, e.emp_no AS employee_no, e.employment_type AS employment_type,
+             COALESCE(wrt.name,
+               CASE pl.kind WHEN 'commute' THEN '通勤手当' WHEN 'bonus' THEN '賞与' WHEN 'allowance' THEN '手当' ELSE pl.kind END
+             ) AS rate_type_name
+      FROM payroll_lines pl
+      JOIN employees e ON e.id = pl.employee_id
+      LEFT JOIN wage_rate_types wrt ON wrt.id = pl.rate_type_id
+      WHERE pl.period_id = ?
+      ORDER BY e.emp_no, pl.kind, COALESCE(wrt.sort_order, 999), pl.id
+    `).all(periodId)),
+  clearPayrollLines: (periodId: number) => {
+    const c = open();
+    const tx = c.transaction(() => {
+      c.prepare("UPDATE shift_assignments SET payroll_period_id = NULL WHERE payroll_period_id = ?").run(periodId);
+      c.prepare("DELETE FROM payroll_lines WHERE period_id = ?").run(periodId);
+    });
+    tx();
+  },
+  lockPayrollPeriod: (id: number, by: string, totalAmount: number, totalEmployees: number) =>
+    open().prepare(`UPDATE payroll_periods SET status = 'locked', locked_at = ?, locked_by = ?,
+      total_amount = ?, total_employees = ? WHERE id = ?`).run(
+      new Date().toISOString(), by, totalAmount, totalEmployees, id
+    ),
+  markPayrollExported: (id: number, by: string) =>
+    open().prepare("UPDATE payroll_periods SET status = 'exported', exported_at = ?, exported_by = ? WHERE id = ?")
+      .run(new Date().toISOString(), by, id),
+
+  // ===== teacher portal invite (extended invite_tokens) =====
+  insertTeacherPortalInvite: (row: { jti: string; employeeId: string; issuedBy: string | null; issuedAt: string; expiresAt: string }) =>
+    open().prepare(`INSERT INTO invite_tokens
+      (jti, case_id, kind, employee_id, issued_by, issued_at, expires_at)
+      VALUES (?, '', 'teacher_portal', ?, ?, ?, ?)`).run(
+      row.jti, row.employeeId, row.issuedBy, row.issuedAt, row.expiresAt
+    ),
 };
 
 function withDocs(c: any) {

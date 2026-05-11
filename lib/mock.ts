@@ -49,6 +49,9 @@ export type Employee = {
   hourlyRate?: number;
   perClassRate?: number;
   contractRenewalDate?: string;
+  commuteMode?: "none" | "commute_pass" | "per_diem" | "per_shift";
+  commuteAmount?: number;
+  commuteTaxable?: boolean;
 };
 
 const ja = "🇯🇵", cn = "🇨🇳", vn = "🇻🇳", np = "🇳🇵", kr = "🇰🇷";

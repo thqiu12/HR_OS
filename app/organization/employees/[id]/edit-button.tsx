@@ -37,7 +37,8 @@ export default function EmployeeEditButton({ employee }: { employee: any }) {
                     }
                     continue;
                   }
-                  fields[k] = ["hourlyRate", "perClassRate", "costRatio"].includes(k) ? Number(v) : v;
+                  if (k === "commuteTaxable") fields[k] = v === "1" ? 1 : 0;
+                  else fields[k] = ["hourlyRate", "perClassRate", "costRatio", "commuteAmount"].includes(k) ? Number(v) : v;
                 }
                 start(async () => {
                   try {
@@ -91,6 +92,30 @@ export default function EmployeeEditButton({ employee }: { employee: any }) {
                   </Field>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5">時給は非常勤、コマ給は業務委託で使用。空欄にすると未設定になります。</p>
+              </div>
+
+              <div className="col-span-2 mt-2 pt-3 border-t border-slate-200">
+                <div className="text-xs text-slate-500 font-bold mb-2">🚃 通勤手当</div>
+                <div className="grid grid-cols-3 gap-4">
+                  <Field label="支給方式">
+                    <select name="commuteMode" defaultValue={employee.commuteMode || "none"} className={input}>
+                      <option value="none">なし</option>
+                      <option value="commute_pass">月額固定 (定期券代)</option>
+                      <option value="per_diem">日額 × 出勤日数</option>
+                      <option value="per_shift">シフト毎</option>
+                    </select>
+                  </Field>
+                  <Field label="単価 / 月額 (円)">
+                    <input name="commuteAmount" type="number" min={0} step={100} placeholder="例: 月額10000 / 日額800" defaultValue={employee.commuteAmount ?? ""} className={input} />
+                  </Field>
+                  <Field label="課税区分">
+                    <select name="commuteTaxable" defaultValue={employee.commuteTaxable ? "1" : "0"} className={input}>
+                      <option value="0">非課税 (15万/月以内)</option>
+                      <option value="1">課税対象</option>
+                    </select>
+                  </Field>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">月額 = 同額 / 日額 = 出勤日数 × 単価 / シフト毎 = シフト数 × 単価。15万/月以内は非課税が一般的。</p>
               </div>
 
               {err && <div className="col-span-2 bg-rose-50 text-rose-700 text-xs p-2 rounded-lg">{err}</div>}

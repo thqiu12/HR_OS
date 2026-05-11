@@ -16,7 +16,7 @@ export function Shell({
   entities?: string[];
 }) {
   const pathname = usePathname();
-  const isAuthRoute = pathname === "/login" || pathname.startsWith("/onboarding/invite");
+  const isAuthRoute = pathname === "/login" || pathname.startsWith("/onboarding/invite") || pathname.startsWith("/portal/teacher");
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (isAuthRoute || !session) return <>{children}</>;

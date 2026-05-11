@@ -89,16 +89,13 @@ export async function parseResumeAction(candidateId: string) {
 
   if (result.ok === false) {
     if (result.reason === "no_api_key") {
-      const mock = result.mock || mockParsedResume();
-      db.setCandidateAiParsed(candidateId, { status: "skipped", data: JSON.stringify(mock), model: "mock" });
-      recordApiUsage({
-        model: "mock", feature: "resume_parse", status: "mock",
-        userId: session.user.id, userLogin: session.user.loginId,
-        resourceType: "candidate", resourceId: candidateId, durationMs,
-      });
-      await logAudit({ session, action: "candidate.resume.parse.mock", resourceType: "candidate", resourceId: candidateId, reason: "no_api_key" });
-      revalidatePath(`/recruiting/candidates/${candidateId}`);
-      return { ok: true as const, mock: true };
+      // Do NOT overwrite existing parsed data with mock — that would destroy
+      // local-parse results. Return an explicit error instead.
+      await logAudit({ session, action: "candidate.resume.parse.skipped", resourceType: "candidate", resourceId: candidateId, reason: "no_api_key" });
+      return {
+        ok: false as const,
+        error: "AI解析を使うには .env に ANTHROPIC_API_KEY を設定してください。設定なしでも「ローカル解析 (無料)」 が利用可能です。",
+      };
     }
     db.setCandidateAiParsed(candidateId, { status: "error" });
     recordApiUsage({
@@ -134,4 +131,60 @@ export async function parseResumeAction(candidateId: string) {
   });
   revalidatePath(`/recruiting/candidates/${candidateId}`);
   return { ok: true as const, mock: false, model: result.model, tokensIn: result.tokensIn, tokensOut: result.tokensOut, costUsd: cost };
+}
+
+/**
+ * Zero-cost local resume parser. No external API call.
+ *
+ * Reads PDF text via pdf-parse + applies Japanese 履歴書 regex/heuristics.
+ * Saves to the same candidate_ai_parsed JSON column so the existing
+ * "解析結果プレビュー" UI displays it. Coverage score is also stored
+ * (in `notes`-style metadata) so HR can see how reliable the result is.
+ */
+export async function parseResumeLocalAction(candidateId: string) {
+  const { session } = await requireSessionForCandidate(candidateId);
+  const resume: any = db.candidateLatestResume(candidateId);
+  if (!resume) return { ok: false as const, error: "履歴書がアップロードされていません" };
+
+  let pdf: Buffer;
+  try { pdf = await loadDecryptedFile(resume); }
+  catch { return { ok: false as const, error: "履歴書ファイルの読み込みに失敗しました" }; }
+
+  db.setCandidateAiParsed(candidateId, { status: "pending" });
+  await logAudit({ session, action: "candidate.resume.parse.local.start", resourceType: "candidate", resourceId: candidateId });
+
+  const t0 = Date.now();
+  const { parseResumeLocal } = await import("@/lib/resume-parser-local");
+  const result = await parseResumeLocal(pdf);
+  const durationMs = Date.now() - t0;
+
+  if (result.ok === false) {
+    db.setCandidateAiParsed(candidateId, { status: "error" });
+    recordApiUsage({
+      model: "local", feature: "resume_parse", status: "error",
+      userId: session.user.id, userLogin: session.user.loginId,
+      resourceType: "candidate", resourceId: candidateId, durationMs,
+      error: result.message,
+    });
+    await logAudit({ session, action: "candidate.resume.parse.local.failed", resourceType: "candidate", resourceId: candidateId, reason: result.message });
+    return { ok: false as const, error: result.message + (result.reason === "empty_text" ? " — AI解析を試してください" : "") };
+  }
+
+  db.setCandidateAiParsed(candidateId, {
+    status: "done",
+    data: JSON.stringify({ ...result.data, _coverage: result.coverage, _source: "local" }),
+    model: "local",
+  });
+  recordApiUsage({
+    model: "local", feature: "resume_parse", status: "success",
+    userId: session.user.id, userLogin: session.user.loginId,
+    resourceType: "candidate", resourceId: candidateId, durationMs,
+  });
+  await logAudit({
+    session, action: "candidate.resume.parse.local.success",
+    resourceType: "candidate", resourceId: candidateId,
+    after: { coverage: Math.round(result.coverage * 100) + "%", durationMs },
+  });
+  revalidatePath(`/recruiting/candidates/${candidateId}`);
+  return { ok: true as const, coverage: result.coverage };
 }
