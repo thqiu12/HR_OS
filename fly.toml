@@ -1,75 +1,47 @@
-# fly.toml — HR OS production config
+# fly.toml app configuration file generated for hr-os on 2026-05-12T14:55:28Z
 #
-# After editing this file, run `fly deploy` to apply changes.
-# Volumes, secrets, and scaling are set out-of-band via `fly` CLI:
-#   fly volumes create hr_os_data --region nrt --size 3
-#   fly secrets set AUTH_SECRET=... ENCRYPTION_KEY=... AUTH_TRUST_HOST=true
-#   fly scale memory 2048
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "hr-os"           # ← will be overwritten by `fly launch` to a unique name
-primary_region = "nrt"  # Tokyo / Narita — closest to JP users
+app = 'hr-os'
+primary_region = 'nrt'
 
-# ---------------------------------------------------------------------------
-# Build
-# ---------------------------------------------------------------------------
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
-# ---------------------------------------------------------------------------
-# Persistent volume — SQLite DB + uploaded resumes live here.
-# Mount path matches HR_DB_PATH / UPLOADS_DIR below.
-# ---------------------------------------------------------------------------
-[[mounts]]
-  source      = "hr_os_data"
-  destination = "/data"
-  # Single-region SQLite: do not scale beyond 1 machine — SQLite is not
-  # multi-writer. If horizontal scale is needed, migrate to Turso/Postgres first.
-
-# ---------------------------------------------------------------------------
-# Runtime env (non-secret). Secrets go via `fly secrets set`.
-# ---------------------------------------------------------------------------
 [env]
-  NODE_ENV     = "production"
-  PORT         = "3010"
-  HR_DB_PATH   = "/data/hr-os.db"
-  UPLOADS_DIR  = "/data/uploads"
-  HR_SKIP_SEED = "1"
-  # AUTH_TRUST_HOST is set via `fly secrets` so it can be flipped per-env.
+  HR_DB_PATH = '/data/hr-os.db'
+  HR_SKIP_SEED = '1'
+  NODE_ENV = 'production'
+  PORT = '3010'
+  UPLOADS_DIR = '/data/uploads'
 
-# ---------------------------------------------------------------------------
-# HTTP service — fly.io proxy handles TLS termination + HTTP→HTTPS redirect.
-# ---------------------------------------------------------------------------
+[[mounts]]
+  source = 'hr_os_data'
+  destination = '/data'
+
 [http_service]
-  internal_port       = 3010
-  force_https         = true
-  auto_stop_machines  = "stop"   # stop idle machines to save credits
-  auto_start_machines = true     # restart on incoming request
-  min_machines_running = 1       # keep 1 warm to avoid cold start on login
-  processes = ["app"]
+  internal_port = 3010
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
 
   [http_service.concurrency]
-    type       = "requests"
-    soft_limit = 200
+    type = 'requests'
     hard_limit = 250
+    soft_limit = 200
 
-# ---------------------------------------------------------------------------
-# Health check — hits /api/health which validates DB + uploads + disk.
-# ---------------------------------------------------------------------------
-[[http_service.checks]]
-  interval     = "30s"
-  timeout      = "5s"
-  grace_period = "20s"
-  method       = "GET"
-  path         = "/api/health"
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '20s'
+    method = 'GET'
+    path = '/api/health'
 
-# ---------------------------------------------------------------------------
-# VM — shared-cpu-2x / 2GB RAM. Comfortably handles ~800 users + payroll calc.
-# Upgrade with `fly scale vm shared-cpu-4x --memory 4096` if needed.
-#
-# NOTE: use `memory_mb` (integer MiB) — the string form `memory = "2gb"` is
-# not parsed correctly by `flyctl launch plan propose` and rejected by the
-# Machines API as `invalid config.guest.memory_mb`.
-# ---------------------------------------------------------------------------
 [[vm]]
-  size      = "shared-cpu-2x"
+  size = 'shared-cpu-2x'
+  cpu_kind = 'shared'
+  cpus = 2
   memory_mb = 2048
