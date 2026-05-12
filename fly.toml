@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for hr-os on 2026-05-12T14:55:28Z
+# fly.toml app configuration file generated for hr-os-f5mozg on 2026-05-12T15:21:23Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'hr-os'
+app = 'hr-os-f5mozg'
 primary_region = 'nrt'
 
 [build]
