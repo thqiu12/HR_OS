@@ -73,8 +73,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static    ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public          ./public
 
-# Migrations + scripts are needed at runtime (db.ts applies them on boot).
+# Migrations are needed at runtime (db.ts applies them on boot).
 COPY --from=builder --chown=nextjs:nodejs /app/migrations      ./migrations
+
+# Bootstrap script for creating the first admin user on a fresh DB.
+# Run via:  fly ssh console -C "node /app/bootstrap-prod.js --admin-login ..."
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/bootstrap-prod.js ./bootstrap-prod.js
 
 # Persistent data dir — mounted as a Fly volume in production.
 # HR_DB_PATH and UPLOADS_DIR (set in fly.toml) point inside /data.
