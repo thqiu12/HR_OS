@@ -1,0 +1,56 @@
+# Build artifacts
+.next
+node_modules
+*.tsbuildinfo
+
+# Local data — must NOT ship to production image
+hr-os.db
+hr-os.db-shm
+hr-os.db-wal
+uploads/
+backups/
+
+# Env / secrets — set via `fly secrets`, never bake into image
+.env
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+
+# Git / CI / editor
+.git
+.github
+.husky
+.claude
+.cursor/
+.idea/
+.vscode/
+
+# Tests + coverage (not needed at runtime)
+tests/
+coverage/
+*.test.ts
+vitest.config.ts
+
+# OS / log noise
+.DS_Store
+Thumbs.db
+ehthumbs.db
+*.log
+.npm
+.pnpm-debug.log
+
+# Docs (not needed at runtime; trim image size)
+docs/
+*.md
+!README.md
+
+# Local scripts that shouldn't run in container
+scripts/loadtest.js
+scripts/litestream.yml
+
+# Misc
+.vercel
+fly.toml
+Dockerfile
+.dockerignore

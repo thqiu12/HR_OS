@@ -32,6 +32,9 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // standalone output: bundles only the files needed for production into .next/standalone.
+  // Used by Dockerfile to produce a ~150MB image instead of pulling all of node_modules.
+  output: "standalone",
   experimental: { serverComponentsExternalPackages: ["better-sqlite3", "pdfjs-dist"] },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
