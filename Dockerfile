@@ -80,6 +80,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/migrations      ./migrations
 # Run via:  fly ssh console -C "node /app/bootstrap-prod.js --admin-login ..."
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/bootstrap-prod.js ./bootstrap-prod.js
 
+# bcryptjs is bundled into Next.js webpack output (not shipped as a separate
+# node_module by the standalone tracer), but bootstrap-prod.js needs to
+# `require("bcryptjs")` from /app/node_modules. Copy it explicitly from the
+# deps stage so the bootstrap CLI works.
+COPY --from=deps   --chown=nextjs:nodejs /app/node_modules/bcryptjs        ./node_modules/bcryptjs
+
 # Persistent data dir — mounted as a Fly volume in production.
 # HR_DB_PATH and UPLOADS_DIR (set in fly.toml) point inside /data.
 RUN mkdir -p /data && chown nextjs:nodejs /data
