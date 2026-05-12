@@ -65,8 +65,11 @@ primary_region = "nrt"  # Tokyo / Narita — closest to JP users
 # ---------------------------------------------------------------------------
 # VM — shared-cpu-2x / 2GB RAM. Comfortably handles ~800 users + payroll calc.
 # Upgrade with `fly scale vm shared-cpu-4x --memory 4096` if needed.
+#
+# NOTE: use `memory_mb` (integer MiB) — the string form `memory = "2gb"` is
+# not parsed correctly by `flyctl launch plan propose` and rejected by the
+# Machines API as `invalid config.guest.memory_mb`.
 # ---------------------------------------------------------------------------
 [[vm]]
-  cpu_kind = "shared"
-  cpus     = 2
-  memory   = "2gb"
+  size      = "shared-cpu-2x"
+  memory_mb = 2048
