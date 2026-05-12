@@ -47,7 +47,7 @@ export async function resetAdminPasswordAction(input: {
     return { ok: false, error: "ログインID が不正です" };
   }
 
-  const user: any = (db as any).userByLoginId(input.loginId);
+  const user: any = (db as any).userByLogin(input.loginId);
   if (!user) {
     return {
       ok: false,

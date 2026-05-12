@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, ChevronDown, LogOut, X, AlertTriangle, IdCard, Clock, Menu } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, X, AlertTriangle, IdCard, Clock, Menu, KeyRound } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Session } from "next-auth";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -20,6 +20,8 @@ const titles: Record<string, string> = {
   "/settings/audit": "設定 / 監査ログ",
   "/settings/usage": "設定 / API使用量",
   "/settings/users": "設定 / ユーザー管理",
+  "/settings/password": "設定 / パスワード変更",
+  "/settings/2fa": "設定 / 2段階認証",
   "/settings": "設定",
 };
 
@@ -150,6 +152,22 @@ export function Topbar({ session, schools = [], departments = [], entities = [],
                     ))}
                   </div>
                 </div>
+                <Link
+                  href="/settings/password"
+                  onClick={() => setOpen(false)}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 inline-flex items-center gap-2 border-b border-slate-100"
+                >
+                  <KeyRound size={14} />
+                  パスワード変更
+                </Link>
+                <Link
+                  href="/settings/2fa"
+                  onClick={() => setOpen(false)}
+                  className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 inline-flex items-center gap-2 border-b border-slate-100"
+                >
+                  <span className="w-[14px] inline-flex justify-center text-[14px] leading-none">🔐</span>
+                  2段階認証(2FA)
+                </Link>
                 <button
                   onClick={handleLogout}
                   disabled={pending}
