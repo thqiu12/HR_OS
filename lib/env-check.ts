@@ -66,8 +66,14 @@ export function assertEnvOrExit(): void {
   process.exit(1);
 }
 
-// Auto-run on module load in production. This catches missing vars at import time
-// rather than at first request (which might be a health check that hides the error).
-if (process.env.NODE_ENV === "production") {
+// Auto-run on module load in production runtime. This catches missing vars at
+// import time rather than at first request (which might be a health check that
+// hides the error).
+//
+// IMPORTANT: skip during `next build` — the builder runs with NODE_ENV=production
+// but secrets are intentionally absent (set via `fly secrets` at runtime). NEXT_PHASE
+// is set to "phase-production-build" during the build step.
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (process.env.NODE_ENV === "production" && !isBuildPhase) {
   assertEnvOrExit();
 }
