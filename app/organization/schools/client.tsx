@@ -3,7 +3,7 @@ import { Card, CardHeader, Badge } from "@/components/ui";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Edit2, Save, X, AlertTriangle, Building2 } from "lucide-react";
-import { createSchoolAction, updateSchoolAction, deleteSchoolAction } from "@/lib/master-actions";
+import { createSchoolAction, updateSchoolAction, deleteSchoolAction, setGroupNameAction } from "@/lib/master-actions";
 
 const TYPES = [
   { value: "jls", label: "日本語学校" },
@@ -15,7 +15,7 @@ const TYPES = [
   { value: "other", label: "その他" },
 ];
 
-export default function SchoolsClient({ schools }: { schools: any[] }) {
+export default function SchoolsClient({ schools, groupName = "当グループ" }: { schools: any[]; groupName?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showAdd, setShowAdd] = useState(false);
@@ -23,6 +23,20 @@ export default function SchoolsClient({ schools }: { schools: any[] }) {
   const [editForm, setEditForm] = useState<{ name: string; type: string; entity: string }>({ name: "", type: "school", entity: "" });
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [groupNameDraft, setGroupNameDraft] = useState(groupName);
+  const [editingGroupName, setEditingGroupName] = useState(false);
+
+  const saveGroupName = () => {
+    setErr(null);
+    start(async () => {
+      try {
+        await setGroupNameAction(groupNameDraft);
+        setEditingGroupName(false);
+        setInfo("グループ名を更新しました");
+        router.refresh();
+      } catch (e: any) { setErr(e?.message); }
+    });
+  };
 
   const startEdit = (s: any) => {
     setEditId(s.id);
@@ -57,6 +71,52 @@ export default function SchoolsClient({ schools }: { schools: any[] }) {
 
   return (
     <div className="max-w-5xl space-y-4">
+      <Card>
+        <CardHeader
+          title="🏛 グループ名(組織ツリーの最上位)"
+          subtitle="組織ツリーの最上位に表示される名称を編集できます。"
+        />
+        <div className="p-5 flex items-center gap-3">
+          {editingGroupName ? (
+            <>
+              <input
+                value={groupNameDraft}
+                onChange={(e) => setGroupNameDraft(e.target.value)}
+                maxLength={100}
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="例: 株式会社さくらHD / さくら教育グループ"
+                autoFocus
+              />
+              <button
+                onClick={saveGroupName}
+                disabled={pending}
+                className="inline-flex items-center gap-1 px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-md text-xs font-medium disabled:opacity-50"
+              >
+                <Save size={14} />保存
+              </button>
+              <button
+                onClick={() => { setEditingGroupName(false); setGroupNameDraft(groupName); }}
+                className="inline-flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-xs font-medium"
+              >
+                <X size={14} />キャンセル
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="flex-1 px-3 py-2 bg-slate-50 rounded-lg text-sm font-medium">
+                {groupName}
+              </div>
+              <button
+                onClick={() => { setEditingGroupName(true); setGroupNameDraft(groupName); setErr(null); }}
+                className="inline-flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-xs font-medium"
+              >
+                <Edit2 size={14} />編集
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
+
       <Card>
         <CardHeader
           title="🏫 学校 / 法人 マスタ"

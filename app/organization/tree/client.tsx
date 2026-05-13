@@ -4,7 +4,7 @@ import { ChevronRight, ChevronDown, Building2, Users, AlertTriangle } from "luci
 import { useState } from "react";
 import Link from "next/link";
 
-export default function OrgTreeClient({ schools, departments, employees, canEdit = false }: { schools: any[]; departments: any[]; employees: any[]; canEdit?: boolean }) {
+export default function OrgTreeClient({ schools, departments, employees, canEdit = false, groupName = "当グループ" }: { schools: any[]; departments: any[]; employees: any[]; canEdit?: boolean; groupName?: string }) {
   const firstSchool = schools[0]?.id;
   const firstDept = firstSchool ? departments.find((d) => d.schoolId === firstSchool)?.id : undefined;
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
@@ -32,7 +32,7 @@ export default function OrgTreeClient({ schools, departments, employees, canEdit
       <Card>
         <CardHeader title="🏢 組織ツリー" subtitle="グループ → 法人 → 学校 → 部門" />
         <div className="p-3 text-sm">
-          <div className="font-bold text-slate-700 px-2 py-1.5">▾ さくらホールディングス</div>
+          <div className="font-bold text-slate-700 px-2 py-1.5">▾ {groupName}</div>
           {Object.entries(groupedByEntity).map(([entity, ss]) => (
             <div key={entity} className="ml-3">
               <div className="font-medium text-slate-600 px-2 py-1.5 text-xs">▾ {entity}</div>

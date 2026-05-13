@@ -788,6 +788,16 @@ export const db = {
   deleteAssignment: (id: string) =>
     open().prepare("DELETE FROM employee_assignments WHERE id = ? AND is_primary = 0").run(id),
 
+  // app-wide settings (key-value store, see migration 025)
+  getAppSetting: (key: string): string | null => {
+    const r: any = open().prepare("SELECT value FROM app_settings WHERE setting_key = ?").get(key);
+    return r?.value ?? null;
+  },
+  setAppSetting: (key: string, value: string, updatedBy?: string | null) =>
+    open().prepare(`INSERT INTO app_settings (setting_key, value, updated_at, updated_by) VALUES (?,?,?,?)
+      ON CONFLICT(setting_key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+      .run(key, value, new Date().toISOString(), updatedBy ?? null),
+
   // user preferences
   setUserPref: (userId: string, key: string, value: string) =>
     open().prepare(`INSERT INTO user_preferences (user_id, pref_key, value, updated_at) VALUES (?,?,?,?)

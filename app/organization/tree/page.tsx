@@ -14,5 +14,6 @@ export default async function Page() {
   const departments = db.departments().filter((d: any) => allowedIds.has(d.schoolId));
   const employees = filterEmployees(session, db.employees());
   const canEdit = canEditMaster(session) || hasRole(session, "school_hr");
-  return <OrgTreeClient schools={schools} departments={departments} employees={employees} canEdit={canEdit} />;
+  const groupName = (db as any).getAppSetting("group_name") || "当グループ";
+  return <OrgTreeClient schools={schools} departments={departments} employees={employees} canEdit={canEdit} groupName={groupName} />;
 }

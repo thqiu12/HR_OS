@@ -121,6 +121,25 @@ export async function createJobAction(input: {
   return { ok: true as const, id };
 }
 
+// ===== Group (top-level org display name) =====
+export async function setGroupNameAction(name: string) {
+  const session = await requireSession();
+  if (!canEditMaster(session)) throw new AppError(403, "Forbidden");
+  const trimmed = (name || "").trim();
+  if (!trimmed) throw new AppError(400, "グループ名は必須です");
+  if (trimmed.length > 100) throw new AppError(400, "グループ名は100文字以下にしてください");
+  const before = (db as any).getAppSetting("group_name");
+  (db as any).setAppSetting("group_name", trimmed, session.user.id);
+  await logAudit({
+    session, action: "settings.group_name.update",
+    resourceType: "app_settings", resourceId: "group_name",
+    before: { name: before }, after: { name: trimmed },
+  });
+  revalidatePath("/organization/tree");
+  revalidatePath("/organization/schools");
+  return { ok: true as const };
+}
+
 // ===== Schools =====
 const SCHOOL_TYPES = new Set(["jls", "senmon", "juku", "hq", "university", "school", "other"]);
 export async function createSchoolAction(input: { name: string; type: string; entity: string }) {

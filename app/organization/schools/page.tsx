@@ -26,5 +26,6 @@ export default async function Page() {
     deptCount: departments.filter((d) => d.schoolId === s.id).length,
     empCount: employees.filter((e) => e.schoolId === s.id).length,
   }));
-  return <SchoolsClient schools={enriched} />;
+  const groupName = (db as any).getAppSetting("group_name") || "当グループ";
+  return <SchoolsClient schools={enriched} groupName={groupName} />;
 }
